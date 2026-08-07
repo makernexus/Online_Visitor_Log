@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,15 +23,10 @@ var buff []byte
 func waitForScanner() string {
 	for {
 		port, err := findScanner()
-		if err != nil {
-			if strings.Contains(err.Error(), "found") {
-				time.Sleep(time.Second * 5)
-				continue
-			}
-		}
-		if port != "" {
+		if err == nil && port != "" {
 			return port
 		}
+		time.Sleep(time.Second * 5)
 	}
 }
 
@@ -48,7 +42,10 @@ func findScanner() (string, error) {
 		return "", fmt.Errorf("no serial ports found")
 	}
 	for _, port := range ports {
-		if port.IsUSB && strings.Contains(port.Product, "USB Serial Device") {
+		// On Linux the serial library never populates Product (see usb_linux.go),
+		// so only require the Windows-style match when Product is actually set;
+		// otherwise fall back to IsUSB alone.
+		if port.IsUSB && (port.Product == "" || strings.Contains(port.Product, "USB Serial Device")) {
 			fmt.Printf("Found port: %s\n", port.Name)
 			fmt.Printf("   Product:%v\n", port.Product)
 			fmt.Printf("   USB ID     %s:%s\n", port.VID, port.PID)
@@ -60,7 +57,7 @@ func findScanner() (string, error) {
 }
 
 /*--------------------------------------------------------------
- *  Read from the comm port until a lf (newline)
+ *  Read from the comm port until a carriage return
  *-------------------------------------------------------------*/
 func read() (string, error) {
 	// Read and print the response
@@ -78,9 +75,9 @@ func read() (string, error) {
 			break
 		}
 		qrCode = qrCode + string(buff[:n])
-		// If we receive a newline stop reading
+		// If we receive a carriage return, stop reading and strip it
 		if buff[n-1] == 13 {
-			qrCode = qrCode[:n]
+			qrCode = qrCode[:len(qrCode)-1]
 			break
 		}
 	}
@@ -112,7 +109,9 @@ func main() {
 		 *-------------------------------------------------------------*/
 		port, err = serial.Open(comPort, mode)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Printf("Error opening port %s: %v\n", comPort, err)
+			time.Sleep(time.Second * 5)
+			continue
 		}
 		/*--------------------------------------------------------------
 		 * Main scanner read loop
@@ -136,6 +135,7 @@ func main() {
 			}
 			if resp, err = http.Get(qrCode); err != nil {
 				fmt.Printf("http error:%v\n", err)
+				continue
 			}
 			scanCount++
 
