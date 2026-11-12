@@ -182,7 +182,7 @@ function generateCSVFiles($startDate, $endDate) {
             }
             
             // Write CSV header
-            fputcsv($fp, array('First Name', 'Last Name', 'Email', 'Visit Reason'));
+            fputcsv($fp, array('First Name', 'Last Name', 'Email', 'Visit Reason'), ",", "\"", "\\");
             
             // Write data rows
             while ($row = mysqli_fetch_assoc($result)) {
@@ -191,7 +191,7 @@ function generateCSVFiles($startDate, $endDate) {
                     $row['nameLast'],
                     $row['email'],
                     $row['visitReason']
-                ));
+                ), ",", "\"", "\\");
             }
             
             fclose($fp);
